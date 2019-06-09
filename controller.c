@@ -38,8 +38,8 @@ int main(int argc, char *argv[])
 	while(1){
 		static struct option long_options[]=
 		{
-			{"on", required_argument, 0, 1},
-			{"off", required_argument, 0, 0},
+			{"on", no_argument, 0, 1},
+			{"off", no_argument, 0, 0},
 		};
 
 		int c = getopt_long(argc, argv,"", long_options, NULL);
@@ -81,11 +81,13 @@ int main(int argc, char *argv[])
 			case ON:
 				break;
 			case OFF:
-				if(!__sync_bool_compare_and_swap(controller_map+idx,OFF, ON))
-				{
-					fprintf(stderr, "conflict, try again\n");
-					exit(1);
-				}
+				controller_map[idx] = ON;
+				break;
+	//			if(!__sync_bool_compare_and_swap(controller_map+idx,OFF, ON))
+	//			{
+	//				fprintf(stderr, "conflict, try again\n");
+	//				exit(1);
+	//			}
 			default:
 				fprintf(stderr, "memory is corrupted!\n");
 				exit(1);
@@ -96,16 +98,11 @@ int main(int argc, char *argv[])
 		switch(old)
 		{
 			case TO_OFF:
-				fprintf(stderr, "in closing\n");
-				exit(1);
 			case OFF:
 				break;
 			case ON:
-				if(!__sync_bool_compare_and_swap(controller_map+idx,ON, OFF))
-				{
-					fprintf(stderr, "conflict, try again\n");
-					exit(1);
-				}
+				controller_map[idx] = TO_OFF;
+				break;
 			default:
 				fprintf(stderr, "memory is corrupted!\n");
 				exit(1);

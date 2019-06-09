@@ -1,6 +1,4 @@
-/*
- * libinstrument-functions
- * Copyright © 2018 yiifburj
+/* * libinstrument-functions * Copyright © 2018 yiifburj
  * 
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -27,7 +25,6 @@
 #include "libinstrument_functions.h"
 
 
-#define POSTFIX ".log"
 #define FILENAME_SIZE	32
 #define PROCESSESNAME_SIZE  (FILENAME_SIZE - sizeof POSTFIX + 1)
 #define CONTROLLER "instument-functions_controller"
@@ -39,8 +36,7 @@ static FILE *output;
 static const char *controller;
 static const char * const processes[]={
 	"controller",
-	"module0",
-	"module1",
+	"vtysh",
 };
 
 static int __attribute__ ((no_instrument_function)) get_process_name(char *buf, int buflen)
@@ -67,7 +63,7 @@ static int __attribute__ ((no_instrument_function)) get_process_name(char *buf, 
 }
 
 
-static __attribute__ ((no_instrument_function)) void output_maps(FILE *output)
+static __attribute__ ((no_instrument_function)) void output_maps(FILE *fp_output)
 {
 	char cmdbuf[32] = {0};
 	snprintf(cmdbuf, sizeof cmdbuf, "/proc/%d/maps", getpid());
@@ -75,7 +71,7 @@ static __attribute__ ((no_instrument_function)) void output_maps(FILE *output)
 	FILE *fp = fopen(cmdbuf, "r");
 	if(fp == NULL)
 	{
-		fprintf(output, "open error:%s\n",cmdbuf);
+		fprintf(fp_output, "open error:%s\n",cmdbuf);
 		return;
 	}
 
@@ -83,19 +79,22 @@ static __attribute__ ((no_instrument_function)) void output_maps(FILE *output)
 	char buf[128];
 	while((l=fread(buf,1,sizeof buf, fp)) > 0)
 	{
-		fwrite(buf, 1, l, output);
+		fwrite(buf, 1, l, fp_output);
 	}
 	fclose(fp);
 }
 
 static __attribute__ ((no_instrument_function)) void open_file(void)
 {
-	char filename[FILENAME_SIZE];
-	if (get_process_name(filename, PROCESSESNAME_SIZE) < 0) {
+#define PREFIX "./"
+#define POSTFIX ".log"
+	char filename[FILENAME_SIZE] = PREFIX;
+	if (get_process_name(filename+sizeof PREFIX - 1, PROCESSESNAME_SIZE - (sizeof PREFIX - 1)- (sizeof POSTFIX)) < 0) {
 		return;
 	}
 	strcat(filename, POSTFIX);
 
+	/* 多线程可能重复打开,需要原子变量操作,或者使用__thread变量 */
 	output = fopen(filename, "a");
 	if(output == NULL)
 	{
@@ -103,14 +102,12 @@ static __attribute__ ((no_instrument_function)) void open_file(void)
 	}
 	else
 	{
-		fprintf(stderr, "open ----------\n");
-		
+		output_maps(output);
 	}
 };
 
 static __attribute__ ((no_instrument_function)) void close_file(void)
 {
-	fprintf(stderr, "close ----------\n");
 	fclose(output);
 	output = NULL;
 }
@@ -199,10 +196,6 @@ char * __attribute__ ((no_instrument_function)) get_map_addr_size(int prot, int 
 		return NULL;
 	}
 
-	if(new)
-	{
-		memset(controller_map, SHM_SIZE, 0);
-	}
 
 	*size = SHM_SIZE;
 
